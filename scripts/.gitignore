@@ -1,2 +1,4 @@
 trino-server*
 data
+logs
+*.log

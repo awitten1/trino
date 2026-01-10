@@ -6,10 +6,10 @@ set -eux
 dir=$(realpath $(dirname $0))
 pushd $dir
 
-install_dir="trino-server-core-480-SNAPSHOT"
+install_dir="trino-server-480-SNAPSHOT"
 
 if [ ! -d ${install_dir} ]; then
-    cp "$dir/../core/trino-server-core/target/${install_dir}.tar.gz" .
+    cp "$dir/../core/trino-server/target/${install_dir}.tar.gz" .
     tar -xzvf ${install_dir}.tar.gz
     cp -r ./etc ${install_dir}
 fi
