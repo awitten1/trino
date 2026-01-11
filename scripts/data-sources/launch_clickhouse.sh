@@ -10,5 +10,5 @@ docker run -d --name clickhouse-server \
     -e CLICKHOUSE_USER=username \
     -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
     -e CLICKHOUSE_PASSWORD=password \
-    clickhouse/clickhouse-server
+    clickhouse/clickhouse-server:24
 
