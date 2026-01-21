@@ -263,4 +263,9 @@ public abstract class PlanVisitor<R, C>
     {
         return visitPlan(node, context);
     }
+
+    public R visitAdaptiveJoin(AdaptiveJoinNode node, C context)
+    {
+        return visitPlan(node, context);
+    }
 }

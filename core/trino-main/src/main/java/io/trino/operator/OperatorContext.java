@@ -29,6 +29,7 @@ import io.trino.memory.context.AggregatedMemoryContext;
 import io.trino.memory.context.LocalMemoryContext;
 import io.trino.memory.context.MemoryTrackingContext;
 import io.trino.operator.OperationTimer.OperationTiming;
+import io.trino.operator.OperationTimer.SplitFinishedPageStat;
 import io.trino.plugin.base.metrics.TDigestHistogram;
 import io.trino.spi.Page;
 import io.trino.spi.TrinoException;
@@ -36,6 +37,7 @@ import io.trino.spi.metrics.Metrics;
 import io.trino.sql.planner.plan.PlanNodeId;
 import jakarta.annotation.Nullable;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
@@ -77,6 +79,7 @@ public class OperatorContext
     private final CounterStat internalNetworkPositions = new CounterStat();
 
     private final OperationTiming addInputTiming = new OperationTiming();
+    private final SplitFinishedPageStat addInputSplitFinishedStat = new SplitFinishedPageStat();
     private final CounterStat inputDataSize = new CounterStat();
     private final CounterStat inputPositions = new CounterStat();
 
@@ -167,6 +170,18 @@ public class OperatorContext
             inputDataSize.update(page.getSizeInBytes());
             inputPositions.update(page.getPositionCount());
         }
+    }
+
+    public void recordSplitFinishedPageProcessed(Page page)
+    {
+        if (page != null && page.isSplitFinishedPage()) {
+            addInputSplitFinishedStat.recordSplitFinishedPage(page.getSplitIdentifier().orElseThrow());
+        }
+    }
+
+    public Map<Page.SplitIdentifier, Integer> getAddInputSplitFinishedMap()
+    {
+        return addInputSplitFinishedStat.getSplitFinishedPageMap();
     }
 
     /**
@@ -331,6 +346,12 @@ public class OperatorContext
 
     // caller should close this context as it's a new context
     public AggregatedMemoryContext newAggregateUserMemoryContext()
+    {
+        return new InternalAggregatedMemoryContext(operatorMemoryContext.newAggregateUserMemoryContext(), memoryFuture, this::updatePeakMemoryReservations, true);
+    }
+
+    // caller should close this context as it's a new context
+    public AggregatedMemoryContext newAggregateSystemMemoryContext()
     {
         return new InternalAggregatedMemoryContext(operatorMemoryContext.newAggregateUserMemoryContext(), memoryFuture, this::updatePeakMemoryReservations, true);
     }

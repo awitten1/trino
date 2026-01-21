@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 
 import static io.airlift.slice.SizeOf.instanceSize;
 import static io.airlift.slice.SizeOf.sizeOfObjectArray;
@@ -30,6 +32,102 @@ import static java.util.Objects.requireNonNull;
 
 public final class Page
 {
+    public static class SplitIdentifier
+    {
+        private final String id;
+
+        private final String tableName;
+
+        private String seqNum;
+
+        private final boolean isFinishedPage;
+
+        public SplitIdentifier(
+                String id,
+                String tableName,
+                boolean isFinishedPage,
+                String seqNum)
+        {
+            this.id = id;
+            this.tableName = tableName;
+            this.isFinishedPage = isFinishedPage;
+            this.seqNum = seqNum;
+        }
+
+        public SplitIdentifier(SplitIdentifier another)
+        {
+            this.id = another.id;
+            this.tableName = another.tableName;
+            this.isFinishedPage = another.isFinishedPage;
+            this.seqNum = another.seqNum;
+        }
+
+        public String getId()
+        {
+            return id;
+        }
+
+        public String getTableName()
+        {
+            return tableName;
+        }
+
+        public boolean getIsFinishedPage()
+        {
+            return isFinishedPage;
+        }
+
+        public String getSeqNum()
+        {
+            return seqNum;
+        }
+
+        public static SplitIdentifier deserialize(String serialized)
+        {
+            String[] split = serialized.split(",");
+            return new SplitIdentifier(split[0], split[1], Boolean.parseBoolean(split[2]), split[3]);
+        }
+
+        public String serialize()
+        {
+            return format("%s,%s,%s,%s", id, tableName, isFinishedPage, seqNum);
+        }
+
+        public boolean equalsIgnoringFinished(SplitIdentifier other)
+        {
+            return Objects.equals(this.id, other.id) &&
+                    Objects.equals(this.tableName, other.tableName);
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (this == obj) {
+                return true;
+            }
+            if ((obj == null) || (getClass() != obj.getClass())) {
+                return false;
+            }
+            SplitIdentifier o = (SplitIdentifier) obj;
+            return Objects.equals(this.id, o.id) &&
+                    Objects.equals(this.tableName, o.tableName) &&
+                    Objects.equals(this.isFinishedPage, o.isFinishedPage) &&
+                    Objects.equals(this.seqNum, o.seqNum);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(id, tableName, isFinishedPage, seqNum);
+        }
+
+        @Override
+        public String toString()
+        {
+            return serialize();
+        }
+    }
+
     public static final int INSTANCE_SIZE = instanceSize(Page.class);
     private static final Block[] EMPTY_BLOCKS = new Block[0];
 
@@ -51,6 +149,7 @@ public final class Page
     private final int positionCount;
     private volatile long sizeInBytes = -1;
     private volatile long retainedSizeInBytes = -1;
+    private Optional<SplitIdentifier> splitIdentifier = Optional.empty();
 
     public Page(Block... blocks)
     {
@@ -83,6 +182,42 @@ public final class Page
         else {
             this.blocks = blocksCopyRequired ? blocks.clone() : blocks;
         }
+    }
+
+    public void setSplitIdentifier(String id, String tableName, boolean isFinished, String seqNum)
+    {
+        this.splitIdentifier = Optional.of(new SplitIdentifier(id, tableName, isFinished, seqNum));
+    }
+
+    public void setSplitIdentifier(Optional<SplitIdentifier> splitIdentifier)
+    {
+        requireNonNull(splitIdentifier, "splitIdentifier is null");
+        this.splitIdentifier = splitIdentifier;
+    }
+
+    public Optional<SplitIdentifier> getSplitIdentifier()
+    {
+        return splitIdentifier;
+    }
+
+    public Optional<String> getId()
+    {
+        return splitIdentifier.map(identifier -> identifier.id);
+    }
+
+    public Optional<String> getSeqNum()
+    {
+        return splitIdentifier.map(seqNum -> seqNum.seqNum);
+    }
+
+    public Optional<String> getTableName()
+    {
+        return splitIdentifier.map(identifier -> identifier.tableName);
+    }
+
+    public boolean isSplitFinishedPage()
+    {
+        return splitIdentifier.map(identifier -> identifier.isFinishedPage).orElse(false);
     }
 
     public int getChannelCount()

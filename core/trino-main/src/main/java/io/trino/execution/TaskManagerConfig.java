@@ -100,6 +100,7 @@ public class TaskManagerConfig
      * default value is overwritten for fault tolerant execution in {@link #applyFaultTolerantExecutionDefaults()}}
      */
     private int taskConcurrency = clamp(nextPowerOfTwo(getAvailablePhysicalProcessorCount()), 2, 32);
+    private int pagesSortBatchSize = -1;
     private int httpResponseThreads = 100;
     private int httpTimeoutThreads = 3;
 
@@ -503,6 +504,20 @@ public class TaskManagerConfig
     public TaskManagerConfig setTaskConcurrency(int taskConcurrency)
     {
         this.taskConcurrency = taskConcurrency;
+        return this;
+    }
+
+    @Min(-1)
+    public int getPagesSortBatchSize()
+    {
+        return pagesSortBatchSize;
+    }
+
+    @Config("task.pages-sort-batch-size")
+    @ConfigDescription("Default size of batch for sorting")
+    public TaskManagerConfig setPagesSortBatchSize(int pagesSortBatchSize)
+    {
+        this.pagesSortBatchSize = pagesSortBatchSize;
         return this;
     }
 

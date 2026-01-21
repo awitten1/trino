@@ -84,6 +84,7 @@ import static io.trino.sql.analyzer.RegexLibrary.JONI;
 public class FeaturesConfig
 {
     public enum DataIntegrityVerification
+
     {
         NONE,
         ABORT,
@@ -135,24 +136,28 @@ public class FeaturesConfig
     private boolean legacyArithmeticDecimalOperators;
 
     public boolean isRedistributeWrites()
+
     {
         return redistributeWrites;
     }
 
     @Config("redistribute-writes")
     public FeaturesConfig setRedistributeWrites(boolean redistributeWrites)
+
     {
         this.redistributeWrites = redistributeWrites;
         return this;
     }
 
     public boolean isScaleWriters()
+
     {
         return scaleWriters;
     }
 
     @Config("scale-writers")
     public FeaturesConfig setScaleWriters(boolean scaleWriters)
+
     {
         this.scaleWriters = scaleWriters;
         return this;
@@ -160,6 +165,7 @@ public class FeaturesConfig
 
     @NotNull
     public DataSize getWriterScalingMinDataProcessed()
+
     {
         return writerScalingMinDataProcessed;
     }
@@ -167,6 +173,7 @@ public class FeaturesConfig
     @Config("writer-scaling-min-data-processed")
     @ConfigDescription("Minimum amount of uncompressed output data processed by writers before writer scaling can happen")
     public FeaturesConfig setWriterScalingMinDataProcessed(DataSize writerScalingMinDataProcessed)
+
     {
         this.writerScalingMinDataProcessed = writerScalingMinDataProcessed;
         return this;
@@ -176,6 +183,7 @@ public class FeaturesConfig
     @LegacyConfig(value = "writer-min-size", replacedBy = "writer-scaling-min-data-processed")
     @ConfigDescription("Target minimum size of writer output when scaling writers")
     public FeaturesConfig setWriterMinSize(DataSize writerMinSize)
+
     {
         this.writerScalingMinDataProcessed = succinctBytes(writerMinSize.toBytes() * 2);
         return this;
@@ -183,6 +191,7 @@ public class FeaturesConfig
 
     @NotNull
     public DataSize getMaxMemoryPerPartitionWriter()
+
     {
         return maxMemoryPerPartitionWriter;
     }
@@ -190,6 +199,7 @@ public class FeaturesConfig
     @Config("max-memory-per-partition-writer")
     @ConfigDescription("Estimated maximum memory required per partition writer in a single thread")
     public FeaturesConfig setMaxMemoryPerPartitionWriter(DataSize maxMemoryPerPartitionWriter)
+
     {
         this.maxMemoryPerPartitionWriter = maxMemoryPerPartitionWriter;
         return this;
@@ -197,12 +207,14 @@ public class FeaturesConfig
 
     @Min(2)
     public int getRe2JDfaStatesLimit()
+
     {
         return re2JDfaStatesLimit;
     }
 
     @Config("re2j.dfa-states-limit")
     public FeaturesConfig setRe2JDfaStatesLimit(int re2JDfaStatesLimit)
+
     {
         this.re2JDfaStatesLimit = re2JDfaStatesLimit;
         return this;
@@ -210,12 +222,14 @@ public class FeaturesConfig
 
     @Min(0)
     public int getRe2JDfaRetries()
+
     {
         return re2JDfaRetries;
     }
 
     @Config("re2j.dfa-retries")
     public FeaturesConfig setRe2JDfaRetries(int re2JDfaRetries)
+
     {
         this.re2JDfaRetries = re2JDfaRetries;
         return this;
@@ -223,6 +237,7 @@ public class FeaturesConfig
 
     @Deprecated
     public RegexLibrary getRegexLibrary()
+
     {
         return regexLibrary;
     }
@@ -231,42 +246,49 @@ public class FeaturesConfig
     @Config("deprecated.regex-library")
     @LegacyConfig("regex-library")
     public FeaturesConfig setRegexLibrary(RegexLibrary regexLibrary)
+
     {
         this.regexLibrary = regexLibrary;
         return this;
     }
 
     public boolean isSpillEnabled()
+
     {
         return spillEnabled;
     }
 
     @Config("spill-enabled")
     public FeaturesConfig setSpillEnabled(boolean spillEnabled)
+
     {
         this.spillEnabled = spillEnabled;
         return this;
     }
 
     public DataSize getAggregationOperatorUnspillMemoryLimit()
+
     {
         return aggregationOperatorUnspillMemoryLimit;
     }
 
     @Config("aggregation-operator-unspill-memory-limit")
     public FeaturesConfig setAggregationOperatorUnspillMemoryLimit(DataSize aggregationOperatorUnspillMemoryLimit)
+
     {
         this.aggregationOperatorUnspillMemoryLimit = aggregationOperatorUnspillMemoryLimit;
         return this;
     }
 
     public List<Path> getSpillerSpillPaths()
+
     {
         return spillerSpillPaths;
     }
 
     @Config("spiller-spill-path")
     public FeaturesConfig setSpillerSpillPaths(List<String> spillPaths)
+
     {
         this.spillerSpillPaths = spillPaths.stream()
                 .map(Paths::get)
@@ -276,6 +298,7 @@ public class FeaturesConfig
 
     @Min(1)
     public int getSpillerThreads()
+
     {
         if (spillerThreads == null) {
             // Higher default concurrency allows to saturate spill disks better in case of multiple spill locations.
@@ -286,6 +309,7 @@ public class FeaturesConfig
 
     @Config("spiller-threads")
     public FeaturesConfig setSpillerThreads(String spillerThreads)
+
     {
         this.spillerThreads = ThreadCountParser.DEFAULT.parse(spillerThreads);
         return this;
@@ -294,6 +318,7 @@ public class FeaturesConfig
     @DecimalMin("0.0")
     @DecimalMax("1.0")
     public double getMemoryRevokingThreshold()
+
     {
         return memoryRevokingThreshold;
     }
@@ -301,6 +326,7 @@ public class FeaturesConfig
     @Config("memory-revoking-threshold")
     @ConfigDescription("Revoke memory when memory pool is filled over threshold")
     public FeaturesConfig setMemoryRevokingThreshold(double memoryRevokingThreshold)
+
     {
         this.memoryRevokingThreshold = memoryRevokingThreshold;
         return this;
@@ -309,6 +335,7 @@ public class FeaturesConfig
     @DecimalMin("0.0")
     @DecimalMax("1.0")
     public double getMemoryRevokingTarget()
+
     {
         return memoryRevokingTarget;
     }
@@ -316,18 +343,21 @@ public class FeaturesConfig
     @Config("memory-revoking-target")
     @ConfigDescription("When revoking memory, try to revoke so much that pool is filled below target at the end")
     public FeaturesConfig setMemoryRevokingTarget(double memoryRevokingTarget)
+
     {
         this.memoryRevokingTarget = memoryRevokingTarget;
         return this;
     }
 
     public double getSpillMaxUsedSpaceThreshold()
+
     {
         return spillMaxUsedSpaceThreshold;
     }
 
     @Config("spiller-max-used-space-threshold")
     public FeaturesConfig setSpillMaxUsedSpaceThreshold(double spillMaxUsedSpaceThreshold)
+
     {
         this.spillMaxUsedSpaceThreshold = spillMaxUsedSpaceThreshold;
         return this;
@@ -336,12 +366,14 @@ public class FeaturesConfig
     @Deprecated
     @LegacyConfig(value = "exchange.compression-enabled", replacedBy = "exchange.compression-codec")
     public FeaturesConfig setExchangeCompressionEnabled(boolean exchangeCompressionEnabled)
+
     {
         this.exchangeCompressionCodec = exchangeCompressionEnabled ? LZ4 : NONE;
         return this;
     }
 
     public CompressionCodec getExchangeCompressionCodec()
+
     {
         return exchangeCompressionCodec;
     }
@@ -349,6 +381,7 @@ public class FeaturesConfig
     @Config("exchange.compression-codec")
     @ConfigDescription("Compression codec used for data in exchanges")
     public FeaturesConfig setExchangeCompressionCodec(CompressionCodec exchangeCompressionCodec)
+
     {
         this.exchangeCompressionCodec = exchangeCompressionCodec;
         return this;
@@ -357,35 +390,41 @@ public class FeaturesConfig
     @Config("exchange.experimental.vectorized-serde.enabled")
     @ConfigDescription("Enable using Java Vector API for faster serialization and deserialization of exchange data")
     public FeaturesConfig setExchangeVectorizedSerdeEnabled(boolean exchangeVectorizedSerdeEnabled)
+
     {
         this.exchangeVectorizedSerdeEnabled = exchangeVectorizedSerdeEnabled;
         return this;
     }
 
     public boolean isExchangeVectorizedSerdeEnabled()
+
     {
         return exchangeVectorizedSerdeEnabled;
     }
 
     public DataIntegrityVerification getExchangeDataIntegrityVerification()
+
     {
         return exchangeDataIntegrityVerification;
     }
 
     @Config("exchange.data-integrity-verification")
     public FeaturesConfig setExchangeDataIntegrityVerification(DataIntegrityVerification exchangeDataIntegrityVerification)
+
     {
         this.exchangeDataIntegrityVerification = exchangeDataIntegrityVerification;
         return this;
     }
 
     public boolean isPagesIndexEagerCompactionEnabled()
+
     {
         return pagesIndexEagerCompactionEnabled;
     }
 
     @Config("pages-index.eager-compaction-enabled")
     public FeaturesConfig setPagesIndexEagerCompactionEnabled(boolean pagesIndexEagerCompactionEnabled)
+
     {
         this.pagesIndexEagerCompactionEnabled = pagesIndexEagerCompactionEnabled;
         return this;
@@ -393,12 +432,14 @@ public class FeaturesConfig
 
     @MaxDataSize("1MB")
     public DataSize getFilterAndProjectMinOutputPageSize()
+
     {
         return filterAndProjectMinOutputPageSize;
     }
 
     @Config("filter-and-project-min-output-page-size")
     public FeaturesConfig setFilterAndProjectMinOutputPageSize(DataSize filterAndProjectMinOutputPageSize)
+
     {
         this.filterAndProjectMinOutputPageSize = filterAndProjectMinOutputPageSize;
         return this;
@@ -406,18 +447,21 @@ public class FeaturesConfig
 
     @Min(0)
     public int getFilterAndProjectMinOutputPageRowCount()
+
     {
         return filterAndProjectMinOutputPageRowCount;
     }
 
     @Config("filter-and-project-min-output-page-row-count")
     public FeaturesConfig setFilterAndProjectMinOutputPageRowCount(int filterAndProjectMinOutputPageRowCount)
+
     {
         this.filterAndProjectMinOutputPageRowCount = filterAndProjectMinOutputPageRowCount;
         return this;
     }
 
     public int getMaxRecursionDepth()
+
     {
         return maxRecursionDepth;
     }
@@ -425,24 +469,28 @@ public class FeaturesConfig
     @Config("max-recursion-depth")
     @ConfigDescription("Maximum recursion depth for recursive common table expression")
     public FeaturesConfig setMaxRecursionDepth(int maxRecursionDepth)
+
     {
         this.maxRecursionDepth = maxRecursionDepth;
         return this;
     }
 
     public int getMaxGroupingSets()
+
     {
         return maxGroupingSets;
     }
 
     @Config("analyzer.max-grouping-sets")
     public FeaturesConfig setMaxGroupingSets(int maxGroupingSets)
+
     {
         this.maxGroupingSets = maxGroupingSets;
         return this;
     }
 
     public boolean isLegacyCatalogRoles()
+
     {
         return legacyCatalogRoles;
     }
@@ -450,6 +498,7 @@ public class FeaturesConfig
     @Config("deprecated.legacy-catalog-roles")
     @ConfigDescription("Enable legacy role management syntax that assumed all roles are catalog scoped")
     public FeaturesConfig setLegacyCatalogRoles(boolean legacyCatalogRoles)
+
     {
         this.legacyCatalogRoles = legacyCatalogRoles;
         return this;
@@ -457,6 +506,7 @@ public class FeaturesConfig
 
     @Deprecated
     public boolean isIncrementalHashArrayLoadFactorEnabled()
+
     {
         return incrementalHashArrayLoadFactorEnabled;
     }
@@ -465,12 +515,14 @@ public class FeaturesConfig
     @Config("incremental-hash-array-load-factor.enabled")
     @ConfigDescription("Use smaller load factor for small hash arrays in order to improve performance")
     public FeaturesConfig setIncrementalHashArrayLoadFactorEnabled(boolean incrementalHashArrayLoadFactorEnabled)
+
     {
         this.incrementalHashArrayLoadFactorEnabled = incrementalHashArrayLoadFactorEnabled;
         return this;
     }
 
     public boolean isHideInaccessibleColumns()
+
     {
         return hideInaccessibleColumns;
     }
@@ -478,12 +530,14 @@ public class FeaturesConfig
     @Config("hide-inaccessible-columns")
     @ConfigDescription("When enabled non-accessible columns are silently filtered from results from SELECT * statements")
     public FeaturesConfig setHideInaccessibleColumns(boolean hideInaccessibleColumns)
+
     {
         this.hideInaccessibleColumns = hideInaccessibleColumns;
         return this;
     }
 
     public boolean isForceSpillingJoin()
+
     {
         return forceSpillingJoin;
     }
@@ -491,12 +545,14 @@ public class FeaturesConfig
     @Config("force-spilling-join-operator")
     @ConfigDescription("Force spilling join operator in favour of the non-spilling one even when there is no spill")
     public FeaturesConfig setForceSpillingJoin(boolean forceSpillingJoin)
+
     {
         this.forceSpillingJoin = forceSpillingJoin;
         return this;
     }
 
     public boolean isColumnarFilterEvaluationEnabled()
+
     {
         return columnarFilterEvaluationEnabled;
     }
@@ -504,12 +560,14 @@ public class FeaturesConfig
     @Config("experimental.columnar-filter-evaluation.enabled")
     @ConfigDescription("Enables columnar evaluation of filters")
     public FeaturesConfig setColumnarFilterEvaluationEnabled(boolean columnarFilterEvaluationEnabled)
+
     {
         this.columnarFilterEvaluationEnabled = columnarFilterEvaluationEnabled;
         return this;
     }
 
     public boolean isFaultTolerantExecutionExchangeEncryptionEnabled()
+
     {
         return faultTolerantExecutionExchangeEncryptionEnabled;
     }
@@ -517,23 +575,27 @@ public class FeaturesConfig
     @Config("fault-tolerant-execution-exchange-encryption-enabled")
     @LegacyConfig("fault-tolerant-execution.exchange-encryption-enabled")
     public FeaturesConfig setFaultTolerantExecutionExchangeEncryptionEnabled(boolean faultTolerantExecutionExchangeEncryptionEnabled)
+
     {
         this.faultTolerantExecutionExchangeEncryptionEnabled = faultTolerantExecutionExchangeEncryptionEnabled;
         return this;
     }
 
     public void applyFaultTolerantExecutionDefaults()
+
     {
         exchangeCompressionCodec = LZ4;
     }
 
     public boolean isLegacyArithmeticDecimalOperators()
+
     {
         return legacyArithmeticDecimalOperators;
     }
 
     @Config("deprecated.legacy-arithmetic-decimal-operators")
     public FeaturesConfig setLegacyArithmeticDecimalOperators(boolean value)
+
     {
         this.legacyArithmeticDecimalOperators = value;
         return this;

@@ -71,6 +71,7 @@ public final class SystemSessionProperties
     public static final String TASK_MIN_WRITER_COUNT = "task_min_writer_count";
     public static final String TASK_MAX_WRITER_COUNT = "task_max_writer_count";
     public static final String TASK_CONCURRENCY = "task_concurrency";
+    public static final String PAGES_SORT_BATCH_SIZE = "pages_sort_batch_size";
     public static final String TASK_SHARE_INDEX_LOADING = "task_share_index_loading";
     public static final String QUERY_MAX_MEMORY = "query_max_memory";
     public static final String QUERY_MAX_TOTAL_MEMORY = "query_max_total_memory";
@@ -361,6 +362,11 @@ public final class SystemSessionProperties
                         taskManagerConfig.getTaskConcurrency(),
                         value -> validateValueIsPowerOfTwo(value, TASK_CONCURRENCY),
                         false),
+                integerProperty(
+                        PAGES_SORT_BATCH_SIZE,
+                        "pages sort batch size",
+                        taskManagerConfig.getPagesSortBatchSize(),
+                        false),
                 booleanProperty(
                         TASK_SHARE_INDEX_LOADING,
                         "Share index join lookups and caching within a task",
@@ -464,10 +470,12 @@ public final class SystemSessionProperties
                         Integer.class,
                         optimizerConfig.getMaxReorderedJoins(),
                         false,
-                        value -> {
+                        value ->
+                        {
                             int intValue = (int) value;
                             if (intValue < 2) {
-                                throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s must be greater than or equal to 2: %s", MAX_REORDERED_JOINS, intValue));
+                                throw new TrinoException(INVALID_SESSION_PROPERTY, format(
+                                        "%s must be greater than or equal to 2: %s", MAX_REORDERED_JOINS, intValue));
                             }
                             return intValue;
                         },
@@ -623,7 +631,8 @@ public final class SystemSessionProperties
                         Integer.class,
                         null,
                         false,
-                        value -> min(taskManagerConfig.getMaxDriversPerTask(), validateNullablePositiveIntegerValue(value, MAX_DRIVERS_PER_TASK)),
+                        value -> min(taskManagerConfig.getMaxDriversPerTask(),
+                                validateNullablePositiveIntegerValue(value, MAX_DRIVERS_PER_TASK)),
                         object -> object),
                 booleanProperty(
                         IGNORE_STATS_CALCULATOR_FAILURES,
@@ -684,9 +693,12 @@ public final class SystemSessionProperties
                         DYNAMIC_ROW_FILTERING_SELECTIVITY_THRESHOLD,
                         "Avoid using dynamic row filters when fraction of rows selected is above threshold",
                         dynamicFilterConfig.getDynamicRowFilterSelectivityThreshold(),
-                        value -> {
+                        value ->
+                        {
                             if (value < 0 || value > 1) {
-                                throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s must be in the range [0, 1]: %s", DYNAMIC_ROW_FILTERING_SELECTIVITY_THRESHOLD, value));
+                                throw new TrinoException(INVALID_SESSION_PROPERTY,
+                                        format("%s must be in the range [0, 1]: %s",
+                                                DYNAMIC_ROW_FILTERING_SELECTIVITY_THRESHOLD, value));
                             }
                         },
                         false),
@@ -749,7 +761,8 @@ public final class SystemSessionProperties
                         TIME_ZONE_ID,
                         "Time Zone Id for the current session",
                         null,
-                        value -> {
+                        value ->
+                        {
                             if (value != null) {
                                 getTimeZoneKey(value);
                             }
@@ -775,9 +788,12 @@ public final class SystemSessionProperties
                         "Retry policy",
                         RetryPolicy.class,
                         queryManagerConfig.getRetryPolicy(),
-                        value -> {
+                        value ->
+                        {
                             if (!queryManagerConfig.getAllowedRetryPolicies().contains(value)) {
-                                throw new TrinoException(INVALID_SESSION_PROPERTY, format("Retry policy %s not allowed. Must be one of %s", value, queryManagerConfig.getAllowedRetryPolicies()));
+                                throw new TrinoException(INVALID_SESSION_PROPERTY,
+                                        format("Retry policy %s not allowed. Must be one of %s", value,
+                                                queryManagerConfig.getAllowedRetryPolicies()));
                             }
                         },
                         true),
@@ -790,11 +806,13 @@ public final class SystemSessionProperties
                         TASK_RETRY_ATTEMPTS_PER_TASK,
                         "Maximum number of task retry attempts per single task",
                         queryManagerConfig.getTaskRetryAttemptsPerTask(),
-                        value -> {
+                        value ->
+                        {
                             if (value < 0 || value > MAX_TASK_RETRY_ATTEMPTS) {
                                 throw new TrinoException(
                                         INVALID_SESSION_PROPERTY,
-                                        format("%s must be greater than or equal to 0 and not not greater than %s", TASK_RETRY_ATTEMPTS_PER_TASK, MAX_TASK_RETRY_ATTEMPTS));
+                                        format("%s must be greater than or equal to 0 and not not greater than %s",
+                                                TASK_RETRY_ATTEMPTS_PER_TASK, MAX_TASK_RETRY_ATTEMPTS));
                             }
                         },
                         false),
@@ -822,7 +840,8 @@ public final class SystemSessionProperties
                         RETRY_DELAY_SCALE_FACTOR,
                         "Maximum delay before initiating a retry attempt. Delay increases exponentially for each subsequent attempt starting from 'retry_initial_delay'",
                         queryManagerConfig.getRetryDelayScaleFactor(),
-                        value -> {
+                        value ->
+                        {
                             if (value < 1.0) {
                                 throw new TrinoException(
                                         INVALID_SESSION_PROPERTY,
@@ -839,12 +858,14 @@ public final class SystemSessionProperties
                 integerProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_PERIOD,
                         "The number of tasks we create for given non-writer stage of arbitrary distribution before we increase task size",
-                        queryManagerConfig.getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthPeriod(),
+                        queryManagerConfig
+                                .getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthPeriod(),
                         true),
                 doubleProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_FACTOR,
                         "Growth factor for adaptive sizing of non-writer tasks of arbitrary distribution for fault-tolerant execution",
-                        queryManagerConfig.getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthFactor(),
+                        queryManagerConfig
+                                .getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthFactor(),
                         true),
                 dataSizeProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_MIN,
@@ -859,12 +880,14 @@ public final class SystemSessionProperties
                 integerProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_PERIOD,
                         "The number of tasks we create for given writer stage of arbitrary distribution before we increase task size",
-                        queryManagerConfig.getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthPeriod(),
+                        queryManagerConfig
+                                .getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthPeriod(),
                         true),
                 doubleProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_FACTOR,
                         "Growth factor for adaptive sizing of writer tasks of arbitrary distribution for fault-tolerant execution",
-                        queryManagerConfig.getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthFactor(),
+                        queryManagerConfig
+                                .getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthFactor(),
                         true),
                 dataSizeProperty(
                         FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_MIN,
@@ -928,25 +951,29 @@ public final class SystemSessionProperties
                         FAULT_TOLERANT_EXECUTION_TASK_MEMORY_ESTIMATION_QUANTILE,
                         "What quantile of memory usage of completed tasks to look at when estimating memory usage for upcoming tasks",
                         memoryManagerConfig.getFaultTolerantExecutionTaskMemoryEstimationQuantile(),
-                        value -> validateDoubleRange(value, FAULT_TOLERANT_EXECUTION_TASK_MEMORY_ESTIMATION_QUANTILE, 0.0, 1.0),
+                        value -> validateDoubleRange(value, FAULT_TOLERANT_EXECUTION_TASK_MEMORY_ESTIMATION_QUANTILE,
+                                0.0, 1.0),
                         true),
                 integerProperty(
                         FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT,
                         "Maximum number of partitions for distributed joins and aggregations executed with fault tolerant execution enabled",
                         queryManagerConfig.getFaultTolerantExecutionMaxPartitionCount(),
-                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT, 1, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
+                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT, 1,
+                                FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
                         true),
                 integerProperty(
                         FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT,
                         "Minimum number of partitions for distributed joins and aggregations executed with fault tolerant execution enabled",
                         queryManagerConfig.getFaultTolerantExecutionMinPartitionCount(),
-                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT, 1, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
+                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT, 1,
+                                FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
                         true),
                 integerProperty(
                         FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT_FOR_WRITE,
                         "Minimum number of partitions for distributed joins and aggregations in write queries executed with fault tolerant execution enabled",
                         queryManagerConfig.getFaultTolerantExecutionMinPartitionCountForWrite(),
-                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT_FOR_WRITE, 1, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
+                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_MIN_PARTITION_COUNT_FOR_WRITE, 1,
+                                FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
                         true),
                 booleanProperty(
                         FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_ENABLED,
@@ -957,7 +984,9 @@ public final class SystemSessionProperties
                         FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_PARTITION_COUNT,
                         "The partition count to use for runtime adaptive partitioning when enabled",
                         queryManagerConfig.getFaultTolerantExecutionRuntimeAdaptivePartitioningPartitionCount(),
-                        value -> validateIntegerValue(value, FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_PARTITION_COUNT, 1, FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
+                        value -> validateIntegerValue(value,
+                                FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_PARTITION_COUNT, 1,
+                                FAULT_TOLERANT_EXECUTION_MAX_PARTITION_COUNT_LIMIT, false),
                         true),
                 dataSizeProperty(
                         FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_MAX_TASK_SIZE,
@@ -983,11 +1012,13 @@ public final class SystemSessionProperties
                         FAULT_TOLERANT_EXECUTION_SMALL_STAGE_SOURCE_SIZE_MULTIPLIER,
                         "Multiplier used for heuristic estimation is stage is small; the bigger the more conservative estimation is",
                         queryManagerConfig.getFaultTolerantExecutionSmallStageSourceSizeMultiplier(),
-                        value -> {
+                        value ->
+                        {
                             if (value < 1.0) {
                                 throw new TrinoException(
                                         INVALID_SESSION_PROPERTY,
-                                        format("%s must be greater than or equal to 1.0: %s", FAULT_TOLERANT_EXECUTION_SMALL_STAGE_SOURCE_SIZE_MULTIPLIER, value));
+                                        format("%s must be greater than or equal to 1.0: %s",
+                                                FAULT_TOLERANT_EXECUTION_SMALL_STAGE_SOURCE_SIZE_MULTIPLIER, value));
                             }
                         },
                         true),
@@ -1015,11 +1046,13 @@ public final class SystemSessionProperties
                         FAULT_TOLERANT_EXECUTION_ADAPTIVE_JOIN_REORDERING_SIZE_DIFFERENCE_RATIO,
                         "The ratio of difference in estimated size of right and left side of join to consider reordering",
                         queryManagerConfig.getFaultTolerantExecutionAdaptiveJoinReorderingSizeDifferenceRatio(),
-                        value -> {
+                        value ->
+                        {
                             if (value < 1.0) {
                                 throw new TrinoException(
                                         INVALID_SESSION_PROPERTY,
-                                        format("%s must be greater than or equal to 1.0: %s", FAULT_TOLERANT_EXECUTION_SMALL_STAGE_SOURCE_SIZE_MULTIPLIER, value));
+                                        format("%s must be greater than or equal to 1.0: %s",
+                                                FAULT_TOLERANT_EXECUTION_SMALL_STAGE_SOURCE_SIZE_MULTIPLIER, value));
                             }
                         },
                         true),
@@ -1136,9 +1169,11 @@ public final class SystemSessionProperties
                         SPOOLING_UNSUPPORTED_WARNING,
                         "Generate warning when client lacks support for spooling protocol",
                         spoolingEnabledConfig.isEnabled() && spoolingEnabledConfig.isUnsupportedWarningEnabled(),
-                        _ -> {
+                        _ ->
+                        {
                             if (!spoolingEnabledConfig.isEnabled()) {
-                                throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s cannot be set when spooling is disabled", SPOOLING_UNSUPPORTED_WARNING));
+                                throw new TrinoException(INVALID_SESSION_PROPERTY, format(
+                                        "%s cannot be set when spooling is disabled", SPOOLING_UNSUPPORTED_WARNING));
                             }
                         },
                         false));
@@ -1248,6 +1283,11 @@ public final class SystemSessionProperties
     public static int getTaskConcurrency(Session session)
     {
         return session.getSystemProperty(TASK_CONCURRENCY, Integer.class);
+    }
+
+    public static int getPagesSortBatchSize(Session session)
+    {
+        return session.getSystemProperty(PAGES_SORT_BATCH_SIZE, Integer.class);
     }
 
     public static boolean isShareIndexLoading(Session session)
@@ -1374,8 +1414,10 @@ public final class SystemSessionProperties
 
     public static DataSize getAggregationOperatorUnspillMemoryLimit(Session session)
     {
-        DataSize memoryLimitForMerge = session.getSystemProperty(AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT, DataSize.class);
-        checkArgument(memoryLimitForMerge.toBytes() >= 0, "%s must be positive", AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT);
+        DataSize memoryLimitForMerge = session.getSystemProperty(AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT,
+                DataSize.class);
+        checkArgument(memoryLimitForMerge.toBytes() >= 0, "%s must be positive",
+                AGGREGATION_OPERATOR_UNSPILL_MEMORY_LIMIT);
         return memoryLimitForMerge;
     }
 
@@ -1431,19 +1473,24 @@ public final class SystemSessionProperties
 
     public static DistinctAggregationsStrategy distinctAggregationsStrategy(Session session)
     {
-        DistinctAggregationsStrategy distinctAggregationsStrategy = session.getSystemProperty(DISTINCT_AGGREGATIONS_STRATEGY, DistinctAggregationsStrategy.class);
+        DistinctAggregationsStrategy distinctAggregationsStrategy = session
+                .getSystemProperty(DISTINCT_AGGREGATIONS_STRATEGY, DistinctAggregationsStrategy.class);
 
         if (distinctAggregationsStrategy != null) {
-            // distinct_aggregations_strategy is set, so it takes precedence over mark_distinct_strategy
+            // distinct_aggregations_strategy is set, so it takes precedence over
+            // mark_distinct_strategy
             return distinctAggregationsStrategy;
         }
 
-        MarkDistinctStrategy markDistinctStrategy = session.getSystemProperty(MARK_DISTINCT_STRATEGY, MarkDistinctStrategy.class);
+        MarkDistinctStrategy markDistinctStrategy = session.getSystemProperty(MARK_DISTINCT_STRATEGY,
+                MarkDistinctStrategy.class);
         if (markDistinctStrategy == null) {
-            // both distinct_aggregations_strategy and mark_distinct_strategy have default null values, use AUTOMATIC
+            // both distinct_aggregations_strategy and mark_distinct_strategy have default
+            // null values, use AUTOMATIC
             return DistinctAggregationsStrategy.AUTOMATIC;
         }
-        // mark_distinct_strategy is set but distinct_aggregations_strategy is not, map mark_distinct_strategy to distinct_aggregations_strategy
+        // mark_distinct_strategy is set but distinct_aggregations_strategy is not, map
+        // mark_distinct_strategy to distinct_aggregations_strategy
         return switch (markDistinctStrategy) {
             case AUTOMATIC -> DistinctAggregationsStrategy.AUTOMATIC;
             case ALWAYS -> DistinctAggregationsStrategy.MARK_DISTINCT;
@@ -1494,7 +1541,9 @@ public final class SystemSessionProperties
     private static void validateHideInaccessibleColumns(boolean value, boolean defaultValue)
     {
         if (defaultValue && !value) {
-            throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s cannot be disabled with session property when it was enabled with configuration", HIDE_INACCESSIBLE_COLUMNS));
+            throw new TrinoException(INVALID_SESSION_PROPERTY,
+                    format("%s cannot be disabled with session property when it was enabled with configuration",
+                            HIDE_INACCESSIBLE_COLUMNS));
         }
     }
 
@@ -1522,12 +1571,14 @@ public final class SystemSessionProperties
         return validateIntegerValue(value, property, 1, true);
     }
 
-    private static Integer validateIntegerValue(Object value, String property, int lowerBoundIncluded, boolean allowNull)
+    private static Integer validateIntegerValue(Object value, String property, int lowerBoundIncluded,
+            boolean allowNull)
     {
         return validateIntegerValue(value, property, lowerBoundIncluded, Integer.MAX_VALUE, allowNull);
     }
 
-    private static Integer validateIntegerValue(Object value, String property, int lowerBoundIncluded, int upperBoundIncluded, boolean allowNull)
+    private static Integer validateIntegerValue(Object value, String property, int lowerBoundIncluded,
+            int upperBoundIncluded, boolean allowNull)
     {
         if (value == null && !allowNull) {
             throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s must be non-null", property));
@@ -1539,10 +1590,12 @@ public final class SystemSessionProperties
 
         int intValue = (int) value;
         if (intValue < lowerBoundIncluded) {
-            throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s must be equal or greater than %s", property, lowerBoundIncluded));
+            throw new TrinoException(INVALID_SESSION_PROPERTY,
+                    format("%s must be equal or greater than %s", property, lowerBoundIncluded));
         }
         if (intValue > upperBoundIncluded) {
-            throw new TrinoException(INVALID_SESSION_PROPERTY, format("%s must be equal or less than %s", property, upperBoundIncluded));
+            throw new TrinoException(INVALID_SESSION_PROPERTY,
+                    format("%s must be equal or less than %s", property, upperBoundIncluded));
         }
 
         return intValue;
@@ -1555,13 +1608,15 @@ public final class SystemSessionProperties
         }
     }
 
-    private static double validateDoubleRange(Object value, String property, double lowerBoundIncluded, double upperBoundIncluded)
+    private static double validateDoubleRange(Object value, String property, double lowerBoundIncluded,
+            double upperBoundIncluded)
     {
         double doubleValue = (double) value;
         if (doubleValue < lowerBoundIncluded || doubleValue > upperBoundIncluded) {
             throw new TrinoException(
                     INVALID_SESSION_PROPERTY,
-                    format("%s must be in the range [%.2f, %.2f]: %.2f", property, lowerBoundIncluded, upperBoundIncluded, doubleValue));
+                    format("%s must be in the range [%.2f, %.2f]: %.2f", property, lowerBoundIncluded,
+                            upperBoundIncluded, doubleValue));
         }
         return doubleValue;
     }
@@ -1753,67 +1808,82 @@ public final class SystemSessionProperties
 
     public static int getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthPeriod(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_PERIOD, Integer.class);
+        return session.getSystemProperty(
+                FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_PERIOD, Integer.class);
     }
 
-    public static double getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthFactor(Session session)
+    public static double getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeGrowthFactor(
+            Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_FACTOR, Double.class);
+        return session.getSystemProperty(
+                FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_GROWTH_FACTOR, Double.class);
     }
 
     public static DataSize getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeMin(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_MIN, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_MIN,
+                DataSize.class);
     }
 
     public static DataSize getFaultTolerantExecutionArbitraryDistributionComputeTaskTargetSizeMax(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_MAX, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE_MAX,
+                DataSize.class);
     }
 
     public static int getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthPeriod(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_PERIOD, Integer.class);
+        return session.getSystemProperty(
+                FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_PERIOD, Integer.class);
     }
 
-    public static double getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthFactor(Session session)
+    public static double getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeGrowthFactor(
+            Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_FACTOR, Double.class);
+        return session.getSystemProperty(
+                FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_GROWTH_FACTOR, Double.class);
     }
 
     public static DataSize getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeMin(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_MIN, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_MIN,
+                DataSize.class);
     }
 
     public static DataSize getFaultTolerantExecutionArbitraryDistributionWriteTaskTargetSizeMax(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_MAX, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ARBITRARY_DISTRIBUTION_WRITE_TASK_TARGET_SIZE_MAX,
+                DataSize.class);
     }
 
     public static DataSize getFaultTolerantExecutionHashDistributionComputeTaskTargetSize(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_COMPUTE_TASK_TARGET_SIZE,
+                DataSize.class);
     }
 
     public static DataSize getFaultTolerantExecutionHashDistributionWriteTaskTargetSize(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TARGET_SIZE, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TARGET_SIZE,
+                DataSize.class);
     }
 
     public static int getFaultTolerantExecutionHashDistributionWriteTaskTargetMaxCount(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TARGET_MAX_COUNT, Integer.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TARGET_MAX_COUNT,
+                Integer.class);
     }
 
     public static double getFaultTolerantExecutionHashDistributionComputeTasksToNodesMinRatio(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_COMPUTE_TASK_TO_NODE_MIN_RATIO, Double.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_COMPUTE_TASK_TO_NODE_MIN_RATIO,
+                Double.class);
     }
 
     public static double getFaultTolerantExecutionHashDistributionWriteTasksToNodesMinRatio(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TO_NODE_MIN_RATIO, Double.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_HASH_DISTRIBUTION_WRITE_TASK_TO_NODE_MIN_RATIO,
+                Double.class);
     }
 
     public static DataSize getFaultTolerantExecutionStandardSplitSize(Session session)
@@ -1868,12 +1938,14 @@ public final class SystemSessionProperties
 
     public static int getFaultTolerantExecutionRuntimeAdaptivePartitioningPartitionCount(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_PARTITION_COUNT, Integer.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_PARTITION_COUNT,
+                Integer.class);
     }
 
     public static DataSize getFaultTolerantExecutionRuntimeAdaptivePartitioningMaxTaskSize(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_MAX_TASK_SIZE, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_RUNTIME_ADAPTIVE_PARTITIONING_MAX_TASK_SIZE,
+                DataSize.class);
     }
 
     public static double getFaultTolerantExecutionMinSourceStageProgress(Session session)
@@ -1898,12 +1970,14 @@ public final class SystemSessionProperties
 
     public static boolean isFaultTolerantExecutionSmallStageRequireNoMorePartitions(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_SMALL_STAGE_REQUIRE_NO_MORE_PARTITIONS, Boolean.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_SMALL_STAGE_REQUIRE_NO_MORE_PARTITIONS,
+                Boolean.class);
     }
 
     public static boolean isFaultTolerantExecutionStageEstimationForEagerParentEnabled(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_STAGE_ESTIMATION_FOR_EAGER_PARENT_ENABLED, Boolean.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_STAGE_ESTIMATION_FOR_EAGER_PARENT_ENABLED,
+                Boolean.class);
     }
 
     public static boolean isFaultTolerantExecutionAdaptiveQueryPlanningEnabled(Session session)
@@ -1918,12 +1992,14 @@ public final class SystemSessionProperties
 
     public static double getFaultTolerantExecutionAdaptiveJoinReorderingSizeDifferenceRatio(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ADAPTIVE_JOIN_REORDERING_SIZE_DIFFERENCE_RATIO, Double.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ADAPTIVE_JOIN_REORDERING_SIZE_DIFFERENCE_RATIO,
+                Double.class);
     }
 
     public static DataSize getFaultTolerantExecutionAdaptiveJoinReorderingMinSizeThreshold(Session session)
     {
-        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ADAPTIVE_JOIN_REORDERING_MIN_SIZE_THRESHOLD, DataSize.class);
+        return session.getSystemProperty(FAULT_TOLERANT_EXECUTION_ADAPTIVE_JOIN_REORDERING_MIN_SIZE_THRESHOLD,
+                DataSize.class);
     }
 
     public static boolean isAdaptivePartialAggregationEnabled(Session session)

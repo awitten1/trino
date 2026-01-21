@@ -15,9 +15,11 @@ package io.trino.operator;
 
 import com.google.errorprone.annotations.ThreadSafe;
 import io.trino.annotation.NotThreadSafe;
+import io.trino.spi.Page;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -135,6 +137,27 @@ class OperationTimer
                     .add("wallNanos", wallNanos)
                     .add("cpuNanos", cpuNanos)
                     .toString();
+        }
+    }
+
+    static class SplitFinishedPageStat
+    {
+        private final ConcurrentHashMap<Page.SplitIdentifier, Integer> splitFinishedPageMap = new ConcurrentHashMap<>();
+
+        void recordSplitFinishedPage(Page.SplitIdentifier pageIdentifier)
+        {
+            splitFinishedPageMap.compute(pageIdentifier, (key, value) -> value == null ? 1 : value + 1);
+        }
+
+        ConcurrentHashMap<Page.SplitIdentifier, Integer> getSplitFinishedPageMap()
+        {
+            return splitFinishedPageMap;
+        }
+
+        @Override
+        public String toString()
+        {
+            return splitFinishedPageMap.toString();
         }
     }
 }

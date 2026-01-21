@@ -24,8 +24,10 @@ import io.trino.Session;
 import io.trino.geospatial.Rectangle;
 import io.trino.operator.SpatialIndexBuilderOperator.SpatialPredicate;
 import io.trino.operator.join.JoinHashSupplier;
+import io.trino.operator.join.JoinUtils;
 import io.trino.operator.join.LookupSource;
 import io.trino.operator.join.LookupSourceSupplier;
+import io.trino.operator.join.SortOperator;
 import io.trino.spi.Page;
 import io.trino.spi.PageBuilder;
 import io.trino.spi.TrinoException;
@@ -44,13 +46,20 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -98,6 +107,13 @@ public class PagesIndex
     private int positionCount;
     private long pagesMemorySize;
     private long estimatedSize;
+    private PagesIndexOrdering pagesIndexOrdering;
+    private final List<Integer> batchEndingPosition;
+    private int pagesBatchSize;
+    private int pagesBatchIter;
+    private final Map<String, List<Integer>> pagesBySplit = new HashMap<>();
+
+    private final Map<String, Map<String, List<Page>>> seqNumToPageBySplit = new HashMap<>();
 
     private PagesIndex(
             OrderingCompiler orderingCompiler,
@@ -113,6 +129,8 @@ public class PagesIndex
         this.types = ImmutableList.copyOf(requireNonNull(types, "types is null"));
         this.valueAddresses = new LongArrayList(expectedPositions);
         this.eagerCompact = eagerCompact;
+        this.pagesBatchSize = 0;
+        this.pagesBatchIter = 0;
 
         //noinspection unchecked
         channels = (ObjectArrayList<Block>[]) new ObjectArrayList[types.size()];
@@ -123,11 +141,32 @@ public class PagesIndex
         positionCounts = new IntArrayList(1024);
 
         estimatedSize = calculateEstimatedSize();
+        pagesIndexOrdering = null;
+
+        batchEndingPosition = new ArrayList<>();
+    }
+
+    private PagesIndex(
+            OrderingCompiler orderingCompiler,
+            JoinCompiler joinCompiler,
+            BlockTypeOperators blockTypeOperators,
+            List<Type> types,
+            int expectedPositions,
+            boolean eagerCompact,
+            int pagesBatchSize,
+            List<Integer> sortChannels,
+            List<SortOrder> sortOrders)
+    {
+        this(orderingCompiler, joinCompiler, blockTypeOperators, types, expectedPositions, eagerCompact);
+        this.pagesBatchSize = pagesBatchSize;
+        pagesIndexOrdering = createPagesIndexComparator(sortChannels, sortOrders);
     }
 
     public interface Factory
     {
         PagesIndex newPagesIndex(List<Type> types, int expectedPositions);
+
+        PagesIndex newPagesIndex(List<Type> types, int expectedPositions, int pagesBatchSize, List<Integer> sortChannels, List<SortOrder> sortOrders);
     }
 
     public static class TestingFactory
@@ -155,6 +194,12 @@ public class PagesIndex
         {
             return new PagesIndex(ORDERING_COMPILER, joinCompiler, TYPE_OPERATOR_FACTORY, types, expectedPositions, eagerCompact);
         }
+
+        @Override
+        public PagesIndex newPagesIndex(List<Type> types, int expectedPositions, int pagesBatchSize, List<Integer> sortChannels, List<SortOrder> sortOrders)
+        {
+            return new PagesIndex(ORDERING_COMPILER, joinCompiler, TYPE_OPERATOR_FACTORY, types, expectedPositions, eagerCompact, pagesBatchSize, sortChannels, sortOrders);
+        }
     }
 
     public static class DefaultFactory
@@ -179,11 +224,36 @@ public class PagesIndex
         {
             return new PagesIndex(orderingCompiler, joinCompiler, blockTypeOperators, types, expectedPositions, eagerCompact);
         }
+
+        @Override
+        public PagesIndex newPagesIndex(List<Type> types, int expectedPositions, int pagesBatchSize, List<Integer> sortChannels, List<SortOrder> sortOrders)
+        {
+            return new PagesIndex(orderingCompiler, joinCompiler, blockTypeOperators, types, expectedPositions, eagerCompact, pagesBatchSize, sortChannels, sortOrders);
+        }
     }
 
     public List<Type> getTypes()
     {
         return types;
+    }
+
+    public void storePage(Page page)
+    {
+        // ignore empty pages
+        if (page.getPositionCount() == 0) {
+            return;
+        }
+        checkArgument(page.getSeqNum().isPresent() && page.getId().isPresent());
+        String pageSeqNum = page.getSeqNum().get();
+        String pageId = page.getId().isPresent() ? page.getId().get() : "";
+        if (!seqNumToPageBySplit.containsKey(pageId)) {
+            seqNumToPageBySplit.put(pageId, new HashMap<>());
+        }
+        Map<String, List<Page>> seqNumToPage = seqNumToPageBySplit.get(pageId);
+        if (!seqNumToPage.containsKey(pageSeqNum)) {
+            seqNumToPage.put(pageSeqNum, new ArrayList<>());
+        }
+        seqNumToPage.get(pageSeqNum).add(page);
     }
 
     public int getPositionCount()
@@ -227,10 +297,16 @@ public class PagesIndex
         if (page.getPositionCount() == 0) {
             return;
         }
+        String pageId = page.getId().isPresent() ? page.getId().get() : "";
+        if (!pagesBySplit.containsKey(pageId)) {
+            pagesBySplit.put(pageId, new ArrayList<>());
+        }
+        pagesBySplit.get(pageId).add(pageCount);
 
         pageCount++;
         positionCount += page.getPositionCount();
         positionCounts.add(page.getPositionCount());
+        batchEndingPosition.add(positionCount);
 
         int pageIndex = (channels.length > 0) ? channels[0].size() : 0;
         for (int i = 0; i < channels.length; i++) {
@@ -252,6 +328,310 @@ public class PagesIndex
             valueAddresses.add(encodeSyntheticAddress(pageIndex, position));
         }
         estimatedSize = calculateEstimatedSize();
+    }
+
+    public void addSeqPages()
+    {
+        Comparator<String> seqNumkeyComparator = (str1, str2) -> {
+            List<Integer> str1Decomposed = Arrays.stream(str1.split("_")).map(Integer::parseInt).collect(Collectors.toList());
+            List<Integer> str2Decomposed = Arrays.stream(str2.split("_")).map(Integer::parseInt).collect(Collectors.toList());
+            int i = 0;
+            while (i < str1Decomposed.size() && i < str2Decomposed.size()) {
+                if (str1Decomposed.get(i) < str2Decomposed.get(i)) {
+                    return -1;
+                }
+                else if (str1Decomposed.get(i) > str2Decomposed.get(i)) {
+                    return 1;
+                }
+                i++;
+            }
+            throw new IllegalStateException();
+        };
+        for (Map<String, List<Page>> seqNumToPage : seqNumToPageBySplit.values()) {
+            Set<String> keys = seqNumToPage.keySet();
+            List<String> sortedKeys = new ArrayList<>(keys);
+            sortedKeys.sort(seqNumkeyComparator);
+            for (String sortedKey : sortedKeys) {
+                for (Page page : seqNumToPage.get(sortedKey)) {
+                    addPage(page);
+                }
+            }
+        }
+    }
+
+    public void addAndSortPage(Page page)
+    {
+        // ignore empty pages
+        if (page.getPositionCount() == 0) {
+            return;
+        }
+        pageCount++;
+        positionCount += page.getPositionCount();
+        pagesBatchIter++;
+        boolean batchCollected = false;
+        if (pagesBatchIter == pagesBatchSize || ((pagesBatchSize < 0) && page.isSplitFinishedPage())) {
+            batchEndingPosition.add(positionCount);
+            pagesBatchIter = 0;
+            batchCollected = true;
+        }
+
+        positionCounts.add(page.getPositionCount());
+
+        int pageIndex = (channels.length > 0) ? channels[0].size() : 0;
+        for (int i = 0; i < channels.length; i++) {
+            Block block = page.getBlock(i);
+            if (eagerCompact) {
+                block = block.copyRegion(0, block.getPositionCount());
+            }
+            channels[i].add(block);
+            pagesMemorySize += block.getRetainedSizeInBytes();
+        }
+        for (int position = 0; position < page.getPositionCount(); position++) {
+            long sliceAddress = encodeSyntheticAddress(pageIndex, position);
+
+            // this uses a long[] internally, so cap size to a nice round number for safety
+            if (valueAddresses.size() >= 2_000_000_000) {
+                throw new TrinoException(GENERIC_INSUFFICIENT_RESOURCES, "Size of pages index cannot exceed 2 billion entries");
+            }
+            valueAddresses.add(sliceAddress);
+        }
+        estimatedSize = calculateEstimatedSize();
+        if (batchCollected) {
+            long time = System.nanoTime();
+            pagesIndexOrdering.sort(this, batchEndingPosition.size() >= 2 ? batchEndingPosition.get(batchEndingPosition.size() - 2) : 0, batchEndingPosition.get(batchEndingPosition.size() - 1));
+            long elapsed = System.nanoTime() - time;
+//            log.debug("Sorting %d entries took %.3f s", batchEndingPosition.get(batchEndingPosition.size() - 1) - (batchEndingPosition.size() >= 2 ? batchEndingPosition.get(batchEndingPosition.size() - 2) : 0), elapsed / 1_000_000_000.0);
+        }
+    }
+
+    // deliberately coupled it to pagesindex to get best performance
+    private static class MinPQ
+    {
+        private final int[] pq;                    // store items at indices 1 to n
+        private int n;                       // number of items on priority queue
+        PagesIndexComparator comparator;  // optional comparator
+        PagesIndex pagesIndex;
+
+        /**
+         * Initializes an empty priority queue with the given initial capacity,
+         * using the given comparator.
+         *
+         * @param initCapacity the initial capacity of this priority queue
+         * @param comparator the order in which to compare the keys
+         */
+        public MinPQ(int initCapacity, PagesIndexComparator comparator, PagesIndex pagesIndex)
+        {
+            this.comparator = comparator;
+            this.pagesIndex = pagesIndex;
+            pq = new int[initCapacity + 1];
+            for (int i = 0; i <= initCapacity; i++) {
+                pq[i] = -1;
+            }
+            n = 0;
+        }
+
+        /**
+         * Returns true if this priority queue is empty.
+         *
+         * @return {@code true} if this priority queue is empty;
+         * {@code false} otherwise
+         */
+        public boolean isEmpty()
+        {
+            return n == 0;
+        }
+
+        /**
+         * Returns the number of keys on this priority queue.
+         *
+         * @return the number of keys on this priority queue
+         */
+        public int size()
+        {
+            return n;
+        }
+
+        /**
+         * Returns a smallest key on this priority queue.
+         *
+         * @return a smallest key on this priority queue
+         */
+        public int min()
+        {
+            return pq[1];
+        }
+
+        /**
+         * Adds a new key to this priority queue.
+         *
+         * @param x the key to add to this priority queue
+         */
+        public void insert(int x)
+        {
+            // add x, and percolate it up to maintain heap invariant
+            pq[++n] = x;
+            swim(n);
+        }
+
+        /**
+         * Removes and returns a smallest key on this priority queue.
+         *
+         * @return a smallest key on this priority queue
+         */
+        public int delMin()
+        {
+            int min = pq[1];
+            exch(1, n--);
+            sink(1);
+            pq[n + 1] = -1;     // to avoid loitering and help with garbage collection
+            return min;
+        }
+
+        /***************************************************************************
+         * Helper functions to restore the heap invariant.
+         ***************************************************************************/
+
+        private void swim(int k)
+        {
+            while (k > 1 && greater(k / 2, k)) {
+                exch(k / 2, k);
+                k = k / 2;
+            }
+        }
+
+        private void sink(int k)
+        {
+            while (2 * k <= n) {
+                int j = 2 * k;
+                if (j < n && greater(j, j + 1)) {
+                    j++;
+                }
+                if (!greater(k, j)) {
+                    break;
+                }
+                exch(k, j);
+                k = j;
+            }
+        }
+
+        /***************************************************************************
+         * Helper functions for compares and swaps.
+         ***************************************************************************/
+        private boolean greater(int i, int j)
+        {
+            return comparator.compareTo(pagesIndex, pq[i], pq[j]) > 0;
+        }
+
+        private void exch(int i, int j)
+        {
+            int swap = pq[i];
+            pq[i] = pq[j];
+            pq[j] = swap;
+        }
+    }
+
+    public LongArrayList mergePages(Map<String, int[]> sortedGroups)
+    {
+        int[][] efficientSortedGroups = new int[sortedGroups.size()][];
+        int[] positionGroup = new int[positionCount];
+        boolean[] endingTable = new boolean[positionCount];
+        int[] groupIdx = new int[sortedGroups.size()];
+        int idx = 0;
+        for (int[] sortedGroup : sortedGroups.values()) {
+            efficientSortedGroups[idx] = sortedGroup;
+            for (int ar : sortedGroup) {
+                positionGroup[ar] = idx;
+            }
+            endingTable[sortedGroup[sortedGroup.length - 1]] = true;
+            idx++;
+        }
+        PagesIndexComparator mergePagesIndexComparator = pagesIndexOrdering.getComparator();
+        MinPQ pq = new MinPQ(sortedGroups.size(), mergePagesIndexComparator, this);
+        sortedGroups.forEach((key, value) -> pq.insert(value[0]));
+        long[] newValueAddress = new long[positionCount];
+        long[] currentValueAddress = valueAddresses.elements();
+        idx = 0;
+        while (pq.size() > 0) {
+            int cur = pq.delMin();
+            newValueAddress[idx++] = currentValueAddress[cur];
+            int group = positionGroup[cur];
+            if (!endingTable[cur]) {
+                groupIdx[group] = groupIdx[group] + 1;
+                int next = efficientSortedGroups[group][groupIdx[group]];
+                pq.insert(next);
+            }
+        }
+        return LongArrayList.wrap(newValueAddress);
+    }
+
+    public Map<String, List<Integer>> getPagesBySplit()
+    {
+        return pagesBySplit;
+    }
+
+    public IntArrayList getPositionCounts()
+    {
+        return positionCounts;
+    }
+
+    public void mergePagesIndex(PagesIndex pagesIndex, SortOperator.SortOperatorFactory.Mode mode)
+    {
+        Map<String, int[]> sortedGroups = new HashMap<>();
+        if (mode == SortOperator.SortOperatorFactory.Mode.DYNAMIC) {
+            // firstly sort the last batch
+            if (this.pageCount > 0) {
+                if (batchEndingPosition.isEmpty() || (batchEndingPosition.get(batchEndingPosition.size() - 1) != positionCount)) {
+                    batchEndingPosition.add(positionCount);
+                    pagesIndexOrdering.sort(this, batchEndingPosition.size() >= 2 ? batchEndingPosition.get(batchEndingPosition.size() - 2) : 0, batchEndingPosition.get(batchEndingPosition.size() - 1));
+                }
+            }
+            List<Integer> batchStartingPositions = new ArrayList<>();
+
+            if (batchEndingPosition.size() >= 2) {
+                batchStartingPositions.addAll(batchEndingPosition.subList(0, batchEndingPosition.size() - 1));
+            }
+            if (batchEndingPosition.size() > 0) {
+                batchStartingPositions.add(0, 0);
+            }
+
+            for (int i = 0; i < batchStartingPositions.size(); i++) {
+                int[] currentGroupIdxs = new int[batchEndingPosition.get(i) - batchStartingPositions.get(i)];
+                for (int j = 0; j < currentGroupIdxs.length; j++) {
+                    currentGroupIdxs[j] = j + batchStartingPositions.get(i);
+                }
+                sortedGroups.put("up" + i, currentGroupIdxs);
+            }
+
+            AtomicInteger ai = new AtomicInteger();
+            List<Integer> pagesStartingPositions = pagesIndex.getPositionCounts().stream().map(ai::addAndGet).collect(Collectors.toList());
+            pagesStartingPositions.add(0, 0);
+
+            for (Map.Entry<String, List<Integer>> pagesGroupIdxs : pagesIndex.getPagesBySplit().entrySet()) {
+                int[] currentGroupIdxs = pagesGroupIdxs.getValue().stream().flatMapToInt(i -> IntStream.range(pagesStartingPositions.get(i), pagesStartingPositions.get(i + 1)).map(j -> j + this.positionCount)).toArray();
+                sortedGroups.put(pagesGroupIdxs.getKey(), currentGroupIdxs);
+            }
+        }
+        else {
+            AtomicInteger ai = new AtomicInteger();
+            List<Integer> pagesStartingPositions = pagesIndex.getPositionCounts().stream().map(ai::addAndGet).collect(Collectors.toList());
+            pagesStartingPositions.add(0, 0);
+            for (Map.Entry<String, List<Integer>> pagesGroupIdxs : pagesIndex.getPagesBySplit().entrySet()) {
+                int[] currentGroupIdxs = pagesGroupIdxs.getValue().stream().flatMapToInt(i -> IntStream.range(pagesStartingPositions.get(i), pagesStartingPositions.get(i + 1)).map(j -> j + this.positionCount)).toArray();
+                sortedGroups.put(pagesGroupIdxs.getKey(), currentGroupIdxs);
+            }
+        }
+
+        List<Page> pages = JoinUtils.channelsToPages(ImmutableList.copyOf(pagesIndex.channels));
+        for (Page page : pages) {
+            this.addPage(page);
+        }
+        if (!(mode == SortOperator.SortOperatorFactory.Mode.STATIC && sortedGroups.size() == 1)) {
+            long timeNow = System.nanoTime();
+            LongArrayList newValueAddress = this.mergePages(sortedGroups);
+            log.debug("Merge %d sorting groups of size %d on %d take %.3f s", sortedGroups.size(), this.getPositionCount(), this.hashCode(), (System.nanoTime() - timeNow) / 1_000_000_000.0);
+            valueAddresses.removeElements(valueAddresses.size() - newValueAddress.size(), valueAddresses.size());
+            valueAddresses.addAll(newValueAddress);
+        }
     }
 
     public DataSize getEstimatedSize()
